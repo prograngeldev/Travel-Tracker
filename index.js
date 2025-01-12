@@ -8,15 +8,16 @@ const port = 3000;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
-const db = new pg.Client({
+const dbConfig = {
   user: "postgres",
   host: "localhost",
   database: "world",
   password: "123456",
   port: 5432,
-});
+};
 
 app.get("/", async (req, res) => {
+  const db = new pg.Client(dbConfig);
   try {
     await db.connect();
     
@@ -38,6 +39,7 @@ app.get("/", async (req, res) => {
 });
 
 app.post("/add", async (req, res) => {
+  const db = new pg.Client(dbConfig);
   try {
     await db.connect();
 
