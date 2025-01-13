@@ -16,49 +16,74 @@ const dbConfig = {
   port: 5432,
 };
 
-app.get("/", async (req, res) => {
-  const db = new pg.Client(dbConfig);
+async function visitedCountries() {
   try {
-    await db.connect();
-    
-    const result = await db.query("SELECT country_code FROM visited_countries;");
     let countries = [];
 
+    const db = new pg.Client(dbConfig);
+    await db.connect();
+    
+    const result = await db.query("SELECT country_code FROM visited_countries;");    
     result.rows.forEach(country => countries.push(country.country_code));
 
     await db.end();
 
-    res.render("index.ejs", { 
-      total: countries.length,
-      countries: countries,
-    });
-  } catch (err) {
+    return countries;
+  } catch(err) {
     console.error(err);
-    res.status(500).send("Request failed!");
+  };
+};
+
+app.get("/", async (req, res) => {
+  const countries = await visitedCountries();
+  console.log(countries);
+  if (countries.length === 0) {
+    res.status(500).send("Internal error!")
+  } else {
+    res.render("index.ejs", { 
+      countries: countries,
+      total: countries.length,
+    });
   };
 });
 
 app.post("/add", async (req, res) => {
-  const db = new pg.Client(dbConfig);
+  let db;
   try {
+    db = new pg.Client(dbConfig);
     await db.connect();
 
     const countrySubmitted = req.body["country"];
-    const retrievedCountry = await db.query('SELECT country_code FROM countries WHERE country_name = $1;', [countrySubmitted]);
-
-    if (retrievedCountry.rows.length === 0) {
-      res.status(404).send("Country not found!");
-    };
-
+    const retrievedCountry = await db.query(
+      "SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%';",
+      [countrySubmitted.toLowerCase()]
+    );
     const countryCode = retrievedCountry.rows[0].country_code;
-    await db.query('INSERT INTO visited_countries (country_code) VALUES ($1);', [countryCode]);
 
-    await db.end();
-
-    res.redirect(302, '/');
+    try {
+      await db.query('INSERT INTO visited_countries (country_code) VALUES ($1);', [countryCode]);
+      res.redirect(302, '/');
+    } catch(err) {
+      console.error(err);
+      const countries = await visitedCountries();
+      res.render('index.ejs', {
+        countries: countries,
+        total: countries.length,
+        error: "Country has already been added, try again with another one.",
+      });
+    };
   } catch (err) {
-    console.error("Query failed with: ", err);
-    res.status(500).send("Request failed!");
+    console.error(err);
+    const countries = await visitedCountries();
+    res.render('index.ejs', {
+      countries: countries,
+      total: countries.length,
+      error: "Country does not exists. Please try again."
+    });
+  } finally {
+    if (db) {
+      await db.end();
+    };
   };
 });
 
