@@ -29,15 +29,15 @@ async function visitedCountries() {
     await db.end();
 
     return countries;
-  } catch(err) {
-    console.error(err);
+  } catch(e) {
+    console.error(e);
+    return null;
   };
 };
 
 app.get("/", async (req, res) => {
   const countries = await visitedCountries();
-  console.log(countries);
-  if (countries.length === 0) {
+  if (!countries) {
     res.status(500).send("Internal error!")
   } else {
     res.render("index.ejs", { 
@@ -48,9 +48,8 @@ app.get("/", async (req, res) => {
 });
 
 app.post("/add", async (req, res) => {
-  let db;
+  let db = new pg.Client(dbConfig);
   try {
-    db = new pg.Client(dbConfig);
     await db.connect();
 
     const countrySubmitted = req.body["country"];
@@ -63,8 +62,8 @@ app.post("/add", async (req, res) => {
     try {
       await db.query('INSERT INTO visited_countries (country_code) VALUES ($1);', [countryCode]);
       res.redirect(302, '/');
-    } catch(err) {
-      console.error(err);
+    } catch(e) {
+      console.error(e);
       const countries = await visitedCountries();
       res.render('index.ejs', {
         countries: countries,
@@ -72,8 +71,8 @@ app.post("/add", async (req, res) => {
         error: "Country has already been added, try again with another one.",
       });
     };
-  } catch (err) {
-    console.error(err);
+  } catch (e) {
+    console.error(e);
     const countries = await visitedCountries();
     res.render('index.ejs', {
       countries: countries,
